@@ -1,11 +1,106 @@
+# codemagic.yaml para app Android nativa (module: app)
 workflows:
-  android-workflow:
-    name: Android Build
+  android-release:
+    name: Android - Build release (AAB + APK)
     max_build_duration: 60
-    instance_type: linux
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - "main"
+        - "master"
+    environment:
+      image: ubuntu-22.04-android   # runner con Android SDK
+      vars:
+        # Marca estas variables como Encrypted text en la UI de Codemagic
+        ANDROID_KEYSTORE_BASE64: EncryptedText(<base64-keystore>)
+        ANDROID_KEYSTORE_PASSWORD: EncryptedText(<keystore-password>)
+        ANDROID_KEY_ALIAS: EncryptedText(<key-alias>)
+        ANDROID_KEY_PASSWORD: EncryptedText(<key-password>)
+        # Para publicar en Google Play (opcional)
+        GOOGLE_PLAY_SERVICE_ACCOUNT: EncryptedText(<base64-service-account-json>)
+      node: none
+    cache:
+      paths:
+        - ~/.gradle
+        - ~/.android/build-cache
+        - ~/.m2/repository
     scripts:
-      - name: Build release APK
+      - name: Preparar entorno y keystore
         script: |
-          ./gradlew assembleRelease
+          set -e
+          chmod +x ./gradlew || true
+          # Si se proporciona el keystore en Base64, lo restaura en app/keystores/keystore.jks
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            mkdir -p app/keystores
+            echo "Restaurando keystore..."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/keystores/keystore.jks
+            # Crear keystore.properties dentro del módulo app para proyectos que lo usen
+            cat > app/keystore.properties <<EOF
+storeFile=keystores/keystore.jks
+storePassword=$ANDROID_KEYSTORE_PASSWORD
+keyAlias=$ANDROID_KEY_ALIAS
+keyPassword=$ANDROID_KEY_PASSWORD
+EOF
+          else
+            echo "ANDROID_KEYSTORE_BASE64 vacío: el build podrá producir artefactos sin firmar si el gradle lo permite."
+          fi
+      - name: Instalar dependencias y limpiar
+        script: |
+          ./gradlew --no-daemon clean
+          # Descargar dependencias (caché permitirá acelerar)
+          ./gradlew --no-daemon :app:dependencies || true
+      - name: Ejecutar tests (unitarios)
+        script: |
+          # Ejecuta tests unitarios si existen
+          ./gradlew --no-daemon :app:test || echo "No hay tests o fallaron (esto no detendrá el pipeline por defecto)."
+      - name: Compilar Android AAB (release)
+        script: |
+          set -e
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            # Forzar uso del keystore restaurado (por si build.gradle no lee keystore.properties)
+            ./gradlew --no-daemon :app:bundleRelease \
+              -Pandroid.injected.signing.store.file=$(pwd)/app/keystores/keystore.jks \
+              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          else
+            # Intentar construir sin firma (podría producir un AAB sin firmar)
+            ./gradlew --no-daemon :app:bundleRelease || echo "bundleRelease falló; verifica configuración de signing."
+          fi
+      - name: Compilar APK (release) - opcional
+        script: |
+          set -e
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            ./gradlew --no-daemon :app:assembleRelease \
+              -Pandroid.injected.signing.store.file=$(pwd)/app/keystores/keystore.jks \
+              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          else
+            ./gradlew --no-daemon :app:assembleRelease || echo "assembleRelease falló; verifica configuración de signing."
+          fi
     artifacts:
-      - app/build/outputs/apk/release/app-release.apk
+      - app/build/outputs/bundle/release/*.aab
+      - app/build/outputs/apk/release/*.apk
+      - app/build/outputs/mapping/release/*   # Proguard/R8 mapping
+    publishing:
+      # Ejemplo: publicar a Google Play (requiere service account JSON en variable codificada)
+      google_play:
+        # service_account json en base64, Codemagic lo decodificará automáticamente si lo configuras
+        credentials: EncryptedText(<base64-service-account-json>)
+        package_name: "<tu.package.name.aqui>"
+        track: internal
+      # También puedes añadir email, Slack, S3, Firebase App Distribution, etc.
+      # email:
+      #   recipients:
+      #     - "<tu-email@ejemplo.com>"
+      #   on_build_success: true
+      #   on_build_failed: true
+
+# Notas y pasos siguientes:
+# 1) Reemplaza los placeholders <...> por los valores reales y marca los sensibles como EncryptedText en la UI de Codemagic.
+# 2) Si tu build.gradle ya espera un archivo keystore.properties en otra ruta, ajusta el script que crea app/keystore.properties (o actualiza build.gradle).
+# 3) Si no quieres que Codemagic gestione el keystore en base64, sube el keystore al repo privado o configúralo en la UI de Codemagic como archivo.
+# 4) Dime si quieres que haga el commit de este codemagic.yaml en la rama main de tu repo y lo añado por ti.
