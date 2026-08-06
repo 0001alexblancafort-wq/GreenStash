@@ -278,15 +278,15 @@ fun GoalInfoCard(
 
                 Column(modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)) {
                     Text(
-                        text = "💰 Tienes: Bs ${NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedAmount), "")} ($${NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedUsd), "")} USD)",
+                        text = "💰 Tienes: VES ${NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedAmount), "")} ($${NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedUsd), "")} USD)",
                         fontSize = 14.sp, fontFamily = greenstashFont, fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "📉 Faltan: Bs ${NumberUtils.formatCurrency(NumberUtils.roundDecimal(missingBs), "")} ($${NumberUtils.formatCurrency(NumberUtils.roundDecimal(missingUsd), "")} USD)",
+                        text = "📉 Faltan: VES ${NumberUtils.formatCurrency(NumberUtils.roundDecimal(missingBs), "")} ($${NumberUtils.formatCurrency(NumberUtils.roundDecimal(missingUsd), "")} USD)",
                         fontSize = 14.sp, fontFamily = greenstashFont, fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "💵 Tasa BCV: Bs $exchangeRate",
+                        text = "💵 Tasa BCV: VES $exchangeRate",
                         fontSize = 12.sp, fontFamily = greenstashFont
                     )
                 }
