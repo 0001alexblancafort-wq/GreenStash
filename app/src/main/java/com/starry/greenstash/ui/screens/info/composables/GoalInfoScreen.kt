@@ -119,7 +119,7 @@ fun GoalInfoScreen(goalId: String, navController: NavController) {
 
     LaunchedEffect(key1 = true) {
         viewModel.loadGoalData(goalId.toLong())
-        viewModel.fetchDolarRate() // ¡Obtiene la tasa al abrir la pantalla!
+        viewModel.fetchDolarRate()
     }
 
     Scaffold(
@@ -186,7 +186,7 @@ fun GoalInfoScreen(goalId: String, navController: NavController) {
                                 dateStyle = viewModel.getDateStyle()
                             ),
                             progress = progressPercent.toFloat() / 100,
-                            exchangeRate = exchangeRate, // Pasamos la tasa
+                            exchangeRate = exchangeRate,
                             isLoadingRate = isLoadingDolar.value
                         )
                         GoalPriorityCard(
@@ -241,7 +241,6 @@ fun GoalInfoCard(
     exchangeRate: Double,
     isLoadingRate: Boolean
 ) {
-    // Formateo manual con String.format (evita el error del código de moneda)
     val formattedSaved = String.format("%.2f", savedAmount)
     val formattedTarget = String.format("%.2f", targetAmount)
     val animatedProgress = animateFloatAsState(targetValue = progress, label = "progress")
@@ -261,7 +260,6 @@ fun GoalInfoCard(
                 .fillMaxWidth()
                 .padding(8.dp)
         ) {
-            // --- BLOQUE DE CONVERSIÓN CORREGIDO ---
             if (isLoadingRate) {
                 Text(
                     text = "🔄 Obteniendo tasa del día...",
@@ -290,7 +288,6 @@ fun GoalInfoCard(
                     )
                 }
             }
-            // --- FIN DEL BLOQUE ---
 
             Text(
                 text = stringResource(id = R.string.info_card_title),
@@ -336,61 +333,6 @@ fun GoalInfoCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "${(progress * 100).toInt()}% | $daysLeftText",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = greenstashFont,
-                    modifier = Modifier.padding(end = 12.dp)
-                )
-            }
-        }
-    }
-}
-            // --- FIN DEL BLOQUE ---
-
-            Text(
-                text = stringResource(id = R.string.info_card_title),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = greenstashFont,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = formattedSavedAmount,
-                fontWeight = FontWeight.Bold,
-                fontSize = 38.sp,
-                fontFamily = greenstashNumberFont,
-                maxLines = 3,
-                lineHeight = 1.3f.em,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 8.dp)
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = stringResource(
-                    id = R.string.info_card_remaining_amount,
-                    formattedTargetAmount
-                ),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = greenstashFont,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            LinearProgressIndicator(
-                progress = { animatedProgress.value },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp)
-                    .padding(start = 12.dp, end = 12.dp)
-                    .clip(RoundedCornerShape(40.dp)),
-                color = MaterialTheme.colorScheme.secondary,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
