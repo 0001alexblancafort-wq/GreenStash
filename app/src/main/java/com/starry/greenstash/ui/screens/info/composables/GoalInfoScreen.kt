@@ -238,13 +238,12 @@ fun GoalInfoCard(
     savedAmount: Double,
     daysLeftText: String,
     progress: Float,
-    exchangeRate: Double, // AGREGADO
-    isLoadingRate: Boolean // AGREGADO
+    exchangeRate: Double,
+    isLoadingRate: Boolean
 ) {
-    val formattedTargetAmount =
-        NumberUtils.formatCurrency(NumberUtils.roundDecimal(targetAmount), currencySymbol)
-    val formattedSavedAmount =
-        NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedAmount), currencySymbol)
+    // Formateo manual con String.format (evita el error del código de moneda)
+    val formattedSaved = String.format("%.2f", savedAmount)
+    val formattedTarget = String.format("%.2f", targetAmount)
     val animatedProgress = animateFloatAsState(targetValue = progress, label = "progress")
 
     Card(
@@ -262,11 +261,11 @@ fun GoalInfoCard(
                 .fillMaxWidth()
                 .padding(8.dp)
         ) {
-            // --- NUEVO BLOQUE DE CONVERSIÓN ---
+            // --- BLOQUE DE CONVERSIÓN CORREGIDO ---
             if (isLoadingRate) {
                 Text(
-                    text = "🔄 Obteniendo tasa del día...", 
-                    fontSize = 12.sp, 
+                    text = "🔄 Obteniendo tasa del día...",
+                    fontSize = 12.sp,
                     fontFamily = greenstashFont,
                     modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
                 )
@@ -278,19 +277,78 @@ fun GoalInfoCard(
 
                 Column(modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)) {
                     Text(
-                        text = "💰 Tienes: VES ${NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedAmount), "")} ($${NumberUtils.formatCurrency(NumberUtils.roundDecimal(savedUsd), "")} USD)",
+                        text = String.format("💰 Tienes: VES %.2f ($%.2f USD)", savedAmount, savedUsd),
                         fontSize = 14.sp, fontFamily = greenstashFont, fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "📉 Faltan: VES ${NumberUtils.formatCurrency(NumberUtils.roundDecimal(missingBs), "")} ($${NumberUtils.formatCurrency(NumberUtils.roundDecimal(missingUsd), "")} USD)",
+                        text = String.format("📉 Faltan: VES %.2f ($%.2f USD)", missingBs, missingUsd),
                         fontSize = 14.sp, fontFamily = greenstashFont, fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "💵 Tasa BCV: VES $exchangeRate",
+                        text = String.format("💵 Tasa BCV: VES %.2f", exchangeRate),
                         fontSize = 12.sp, fontFamily = greenstashFont
                     )
                 }
             }
+            // --- FIN DEL BLOQUE ---
+
+            Text(
+                text = stringResource(id = R.string.info_card_title),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = greenstashFont,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "VES $formattedSaved",
+                fontWeight = FontWeight.Bold,
+                fontSize = 38.sp,
+                fontFamily = greenstashNumberFont,
+                maxLines = 3,
+                lineHeight = 1.3f.em,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = "Meta total: VES $formattedTarget",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = greenstashFont,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            LinearProgressIndicator(
+                progress = { animatedProgress.value },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .padding(start = 12.dp, end = 12.dp)
+                    .clip(RoundedCornerShape(40.dp)),
+                color = MaterialTheme.colorScheme.secondary,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "${(progress * 100).toInt()}% | $daysLeftText",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = greenstashFont,
+                    modifier = Modifier.padding(end = 12.dp)
+                )
+            }
+        }
+    }
+}
             // --- FIN DEL BLOQUE ---
 
             Text(
