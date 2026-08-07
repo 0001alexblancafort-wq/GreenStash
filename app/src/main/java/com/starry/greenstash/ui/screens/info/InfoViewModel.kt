@@ -1,10 +1,72 @@
+package com.starry.greenstash.ui.screens.info
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.starry.greenstash.database.core.GoalWithTransactions
+import com.starry.greenstash.database.goal.GoalDao
+import com.starry.greenstash.database.transaction.Transaction
+import com.starry.greenstash.database.transaction.TransactionDao
+import com.starry.greenstash.database.transaction.TransactionType
+import com.starry.greenstash.ui.screens.settings.DateStyle
+import com.starry.greenstash.utils.NumberUtils
+import com.starry.greenstash.utils.PreferenceUtil
+import com.starry.greenstash.utils.Utils
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.LocalDateTime
+import javax.inject.Inject
+
+data class InfoScreenState(
+    val goalData: Flow<GoalWithTransactions?>? = null
+)
+
+data class EditTransactionState(
+    val amount: String = "",
+    val notes: String = "",
+)
+
+@HiltViewModel
+class InfoViewModel @Inject constructor(
+    private val goalDao: GoalDao,
+    private val transactionDao: TransactionDao,
+    private val preferenceUtil: PreferenceUtil
+) : ViewModel() {
+
+    var state by mutableStateOf(InfoScreenState())
+    var editTransactionState by mutableStateOf(EditTransactionState())
+
+    private val _dolarRate = MutableStateFlow(40.0)
+    val dolarRate = _dolarRate.asStateFlow()
+
+    private val _isLoadingDolar = MutableStateFlow(true)
+    val isLoadingDolar = _isLoadingDolar.asStateFlow()
+
+    fun loadGoalData(goalId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val goalWithTransactions = goalDao.getGoalWithTransactionByIdAsFlow(goalId)
+            delay(450L)
+            state = state.copy(goalData = goalWithTransactions)
+        }
+    }
+
     fun fetchDolarRate() {
         viewModelScope.launch {
             _isLoadingDolar.value = true
             val rate = withContext(Dispatchers.IO) {
                 try {
-                    // El endpoint "venezuela" devuelve un objeto, no un arreglo
-                    val url = URL("https://ve.dolarapi.com/v1/dolares/venezuela")
+                    val url = URL("https://dolarapi.com")
                     val connection = url.openConnection() as HttpURLConnection
                     connection.requestMethod = "GET"
                     connection.setRequestProperty("User-Agent", "GreenStash-App")
@@ -14,18 +76,75 @@
                     val response = connection.inputStream.bufferedReader().readText()
                     connection.disconnect()
 
-                    // Corrección: Leer como JSONObject directo
-                    val jsonObject = org.json.JSONObject(response)
-                    
-                    // Extrae el promedio (en DolarApi Venezuela, el nodo raíz ya trae el valor oficial)
+                    val jsonObject = JSONObject(response)
                     jsonObject.getDouble("promedio")
                 } catch (e: Exception) {
-                    e.printStackTrace() // Te permite ver el error exacto en Logcat
-                    40.0 // Valor de respaldo si falla la red
+                    e.printStackTrace()
+                    40.0 
                 }
             }
             _dolarRate.value = rate
             _isLoadingDolar.value = false
         }
     }
-    
+
+    fun setEditTransactionState(transaction: Transaction) {
+        editTransactionState = EditTransactionState(
+            amount = transaction.amount.toString(),
+            notes = transaction.notes,
+        )
+    }
+
+    fun deleteTransaction(transaction: Transaction) {
+        viewModelScope.launch(Dispatchers.IO) {
+            transactionDao.deleteTransaction(transaction)
+        }
+    }
+
+    fun updateTransaction(
+        transaction: Transaction,
+        transactionTime: LocalDateTime,
+        transactionType: TransactionType
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newTransaction = transaction.copy(
+                type = transactionType,
+                timeStamp = Utils.getEpochTime(transactionTime),
+                amount = NumberUtils.roundDecimal(editTransactionState.amount.toDouble()),
+                notes = editTransactionState.notes
+            )
+            newTransaction.transactionId = transaction.transactionId
+            transactionDao.updateTransaction(newTransaction)
+        }
+    }
+
+    fun duplicateTransaction(transaction: Transaction, transactionType: TransactionType) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newTransaction = transaction.copy(
+                type = transactionType,
+                timeStamp = Utils.getEpochTime(LocalDateTime.now()),
+                amount = NumberUtils.roundDecimal(editTransactionState.amount.toDouble()),
+                notes = editTransactionState.notes
+            )
+            newTransaction.transactionId = 0L
+            transactionDao.insertTransaction(newTransaction)
+        }
+    }
+
+    fun getDefaultCurrencyValue() = preferenceUtil.getString(
+        PreferenceUtil.DEFAULT_CURRENCY_STR, "$"
+    )!!
+
+    fun getDateStyle(): DateStyle {
+        return preferenceUtil.getInt(PreferenceUtil.DATE_STYLE_INT, DateStyle.DD_MM_YYYY.ordinal)
+            .let { DateStyle.entries[it] }
+    }
+
+    fun shouldShowTransactionTip() = preferenceUtil.getBoolean(
+        PreferenceUtil.INFO_TRANSACTION_SWIPE_TIP_BOOL, true
+    )
+
+    fun transactionTipDismissed() = preferenceUtil.putBoolean(
+        PreferenceUtil.INFO_TRANSACTION_SWIPE_TIP_BOOL, false
+    )
+}
